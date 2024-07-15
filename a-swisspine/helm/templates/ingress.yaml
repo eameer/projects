@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    ingress.kubernetes.io/add-base-url: "true"
+    ingress.kubernetes.io/rewrite-target: /
+  name: {{ .Values.ingress.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  ingressClassName: {{ .Values.ingress.name }}
+  rules:
+  - host: {{ .Values.ingress.hostname }}
+    http:
+      paths:
+      - backend:
+          service:
+            name: {{ .Values.service.name }}-service
+            port:
+              number: {{ .Values.deployment.container_port }}
+        path: {{ .Values.ingress.service_path }}
+        pathType: ImplementationSpecific

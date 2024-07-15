@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.service.name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Values.service.name }}
+spec:
+  replicas: {{ .Values.deployment.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.service.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.service.name }}
+    spec:
+      containers:
+      - name: {{ .Values.deployment.container_name }}
+        image: {{ .Values.deployment.container_image }}
+        imagePullPolicy: Always
+        ports:
+          - containerPort: {{ .Values.deployment.container_port }}
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /api/health
+            port: {{ .Values.deployment.container_port }}
+            scheme: HTTP
+          initialDelaySeconds: 300
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: {{ .Values.deployment.resources.cpu_limits }} 
+            memory: {{ .Values.deployment.resources.mem_limits }} 
+          requests:
+            cpu: {{ .Values.deployment.resources.cpu_requests }} 
+            memory: {{ .Values.deployment.resources.mem_requests }} 

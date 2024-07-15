@@ -1,0 +1,21 @@
+namespace: default
+
+service:
+  name: swisspine_node
+  port: 80
+
+deployment:
+  container_name: swisspine_node
+  container_image: swisspine-assessment.azurecr.io/swisspine_node:0.0.1-beta
+  container_port: 4004
+  replicas: 1
+  resources:
+    cpu_limits: 500m
+    cpu_requests: 100m
+    mem_limits: 1000Mi
+    mem_requests: 800Mi
+
+ingress:
+  name: swisspine_node_ingress
+  hostname: swisspine.nodeservice.com
+  service_path: /api

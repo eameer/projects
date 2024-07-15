@@ -1,0 +1,98 @@
+parameters:
+  - name: vmImage
+    type: string
+    default: 'ubuntu-latest'
+  - name: containerRegistry
+    type: string
+  - name: pipelineServicePrincipal
+    type: string
+  - name: clusterName
+    type: string
+  - name: resourceGroup
+    type: string
+  - name: azureSubscription
+    type: string
+
+jobs:
+  - job:
+    pool:
+      vmImage: ${{ parameters.vmImage }}
+    steps:
+      - task: NodeTool@0
+        inputs:
+          versionSource: 'fromFile'
+          versionFilePath: '.nvmrc'
+      - script: |
+          npm install
+        displayName: 'npm install'
+      - script: |
+          npm run test
+        displayName: 'run test'
+      - task: Bash@3
+        displayName: 'Get Build Data'
+        inputs:
+          targetType: 'inline'
+          script: |
+            version=$(cat package.json | awk '/version/ { gsub(/"/, "", $2); print $NF  }'  | sed 's/,$//')
+            echo "##vso[task.setvariable variable=project_version;]$version"
+          bashEnvValue: 'project_version'
+      - task: Bash@3
+        displayName: 'Get Build Data'
+        inputs:
+          targetType: 'inline'
+          script: |
+            projectname=$(cat package.json | awk '/name/ { gsub(/"/, "", $2); print $NF  }'  | sed 's/,$//')
+            echo "##vso[task.setvariable variable=project_name;]$projectname"
+          bashEnvValue: 'project_name'
+      - task: Docker@2
+        displayName: 'Container Build'
+        inputs:
+          containerRegistry: ${{ parameters.containerRegistry }}
+          repository: '$(project_name)'
+          command: 'build'
+          Dockerfile: '**/Dockerfile'
+          tags: '$(project_version)'
+      - task: AzureCLI@2
+        inputs:
+          connectedServiceNameARM: ${{ parameters.pipelineServicePrincipal }}
+          scriptType: 'bash'
+          scriptLocation: 'inlineScript'
+          inlineScript: |
+            az acr login --name ${{ parameters.containerRegistry }}
+        displayName: Docker Login
+      - task: Docker@2
+        displayName: 'Container Push'
+        inputs:
+          containerRegistry: ${{ parameters.containerRegistry }}
+          repository: '$(project_name)'
+          command: 'push'
+          tags: '$(project_version)'
+      - script: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+          chmod +x kubectl
+          mkdir -p ~/.local/bin
+          mv ./kubectl ~/.local/bin/kubectl
+          curl -LO https://get.helm.sh/helm-v3.14.4-linux-amd64.tar.gz
+          tar -zxvf helm-v3.14.4-linux-amd64.tar.gz
+          sudo mv linux-amd64/helm /usr/local/bin/helm
+        displayName: 'Install Helm and kubectl'
+      - script: |
+          helm package $(System.DefaultWorkingDirectory)/helm
+          helm push $(System.DefaultWorkingDirectory)/$(project_name)-$(project_version).tgz oci://${{ parameters.containerRegistryName }}.azurecr.io/helm
+        displayName: 'Package Helm Chart'
+      - task: AzureCLI@2
+        inputs:
+          connectedServiceNameARM: ${{ parameters.pipelineServicePrincipal }}
+          scriptType: 'bash'
+          scriptLocation: 'inlineScript'
+          inlineScript: |
+            az aks get-credentials --resource-group ${{ parameters.resourceGroup }} --name ${{ parameters.clusterName }} --subscription ${{ parameters.azureSubscription }}
+            export KUBECONFIG=~/.kube/config
+            export AAD_SERVICE_PRINCIPAL_CLIENT_ID=$servicePrincipalId
+            export AAD_SERVICE_PRINCIPAL_CLIENT_SECRET=$servicePrincipalKey
+            kubelogin convert-kubeconfig -l spn
+        displayName: 'Kubectl Cluster Login'
+      - script: |
+          helm install $(project_name)-chart oci://${{ parameters.containerRegistryName }}.azurecr.io/helm -n default
+        displayName: 'Install Helm Chart'

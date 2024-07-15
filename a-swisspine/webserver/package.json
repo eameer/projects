@@ -1,0 +1,19 @@
+{
+  "name": "swisspine_node",
+  "version": "0.0.1-beta",
+  "main": "server.js",
+  "scripts": {
+    "test": "jest --detectOpenHandles",
+    "serve": "node server.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0"
+  }
+}
